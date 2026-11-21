@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Focus Tube</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: full-bleed YouTube video behind a mode-tinted veil, one centered timer card, a slim video bar at the bottom. */
+:root {
+  --focus: 186, 73, 73;
+  --short: 56, 133, 138;
+  --long: 57, 112, 151;
+  --mode: var(--focus);
+  --dim: 0.55;
+  --ink: #ffffff;
+  --ink-soft: rgba(255,255,255,.72);
+  --glass: rgba(255,255,255,.12);
+  --glass-strong: rgba(255,255,255,.2);
+  --panel: #ffffff;
+  --panel-ink: #2b2526;
+  --panel-soft: #6f6668;
+  --panel-line: #e8e1e2;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: rgb(var(--mode));
+  overflow: hidden;
+  transition: background-color .6s ease;
+}
+button, input { font: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* ---------- Background video ---------- */
+#stage { position: fixed; inset: 0; overflow: hidden; z-index: 0; }
+#stage iframe, #player {
+  position: absolute; top: 50%; left: 50%;
+  width: 100vw; height: 56.25vw;          /* 16:9 */
+  min-width: 177.78vh; min-height: 100vh; /* cover */
+  transform: translate(-50%, -50%);
+  pointer-events: none; border: 0;
+}
+#veil {
+  position: fixed; inset: 0; z-index: 1;
+  background:
+    radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(0,0,0,.35) 100%),
+    rgba(var(--mode), var(--dim));
+  transition: background-color .6s ease;
+}
+body.no-video #veil { background: rgb(var(--mode)); }
+
+/* ---------- Shell ---------- */
+.shell {
+  position: relative; z-index: 2;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 14px max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px));
+  max-width: 980px; margin: 0 auto;
+}
+
+header {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,.18);
+}
+.brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; letter-spacing: -.01em; white-space: nowrap; }
+.brand svg { width: 22px; height: 22px; }
+#urlForm { flex: 1 1 320px; display: flex; gap: 8px; min-width: 0; }
+#url {
+  flex: 1; min-width: 0;
+  padding: 9px 12px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.25);
+  background: rgba(0,0,0,.22); color: var(--ink);
+}
+#url::placeholder { color: rgba(255,255,255,.55); }
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px; border-radius: 8px; border: 0;
+  background: var(--glass-strong); color: var(--ink); font-weight: 600; font-size: .9rem;
+  white-space: nowrap;
+}
+.btn-ghost:hover { background: rgba(255,255,255,.28); }
+.btn-ghost svg { width: 16px; height: 16px; }
+
+#notice {
+  margin-top: 12px; padding: 10px 14px; border-radius: 8px;
+  background: rgba(0,0,0,.45); font-size: .88rem; line-height: 1.45;
+}
+#notice code { background: rgba(255,255,255,.15); padding: 1px 6px; border-radius: 4px; font-size: .85em; }
+
+/* ---------- Timer ---------- */
+main { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; min-height: 0; }
+.card {
+  width: min(480px, 100%);
+  background: var(--glass);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-radius: 10px;
+  padding: 22px 16px 30px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.tab {
+  border: 0; background: transparent; color: var(--ink);
+  padding: 4px 12px; border-radius: 6px; font-size: .95rem; font-weight: 500;
+}
+.tab[aria-selected="true"] { background: rgba(0,0,0,.18); font-weight: 700; }
+#time {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(5rem, 22vw, 7.5rem); line-height: 1.05;
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  margin: 10px 0 14px;
+  text-shadow: 0 2px 18px rgba(0,0,0,.18);
+}
+.controls { display: flex; align-items: center; gap: 14px; position: relative; }
+#startBtn {
+  width: 200px; height: 56px; border: 0; border-radius: 6px;
+  background: #fff; color: rgb(var(--mode));
+  font-size: 1.35rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  box-shadow: 0 6px 0 rgb(235,235,235);
+  transition: color .5s ease, transform .08s, box-shadow .08s;
+}
+#startBtn.running { transform: translateY(6px); box-shadow: none; }
+#skipBtn {
+  position: absolute; left: calc(100% + 14px);
+  width: 40px; height: 40px; border: 0; border-radius: 50%;
+  background: transparent; color: var(--ink); display: grid; place-items: center;
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+#skipBtn.show { opacity: .9; pointer-events: auto; }
+#skipBtn svg { width: 26px; height: 26px; }
+
+.progress { width: min(480px, 100%); height: 3px; background: rgba(0,0,0,.18); border-radius: 2px; overflow: hidden; }
+#bar { height: 100%; width: 0; background: #fff; transition: width .3s linear; }
+
+.status { text-align: center; }
+#round { color: var(--ink-soft); font-size: .95rem; font-variant-numeric: tabular-nums; }
+#message { font-size: 1.15rem; font-weight: 600; margin-top: 2px; }
+
+/* ---------- Video bar ---------- */
+footer {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(0,0,0,.28); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  font-size: .85rem;
+}
+.icon-btn {
+  width: 34px; height: 34px; border: 0; border-radius: 6px; flex: none;
+  background: var(--glass-strong); color: var(--ink); display: grid; place-items: center;
+}
+.icon-btn:hover { background: rgba(255,255,255,.3); }
+.icon-btn svg { width: 16px; height: 16px; }
+.icon-btn:disabled { opacity: .4; cursor: default; }
+#videoTitle { flex: 1 1 160px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-soft); }
+.slider { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); }
+.slider input { width: 90px; accent-color: #fff; }
+
+/* ---------- Settings ---------- */
+dialog {
+  width: min(400px, calc(100% - 32px)); padding: 0; border: 0; border-radius: 10px;
+  background: var(--panel); color: var(--panel-ink); color-scheme: light;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+}
+dialog::backdrop { background: rgba(0,0,0,.45); }
+.dlg-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--panel-line); }
+.dlg-head h2 { margin: 0; font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; color: var(--panel-soft); }
+.dlg-head button { border: 0; background: none; font-size: 1.4rem; line-height: 1; color: var(--panel-soft); }
+.dlg-body { padding: 8px 20px 4px; }
+.group { padding: 14px 0; border-bottom: 1px solid var(--panel-line); display: grid; gap: 12px; }
+.group:last-child { border-bottom: 0; }
+.group h3 { margin: 0; font-size: .95rem; }
+.mins { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mins label { display: grid; gap: 4px; font-size: .8rem; color: var(--panel-soft); }
+.mins input, .row input[type=number] {
+  width: 100%; padding: 8px 10px; border-radius: 6px; border: 0; background: #efebeb; color: var(--panel-ink);
+  font-variant-numeric: tabular-nums;
+}
+.row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: .92rem; }
+.row input[type=number] { width: 72px; }
+.row input[type=range] { width: 140px; }
+.switch { position: relative; width: 44px; height: 24px; flex: none; }
+.switch input { opacity: 0; width: 100%; height: 100%; margin: 0; position: absolute; cursor: pointer; z-index: 1; }
+.switch span { position: absolute; inset: 0; border-radius: 12px; background: #ccc; transition: background .2s; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.switch input:checked + span { background: #84c733; }
+.switch input:checked + span::after { transform: translateX(20px); }
+.switch input:focus-visible + span { outline: 2px solid var(--panel-ink); outline-offset: 2px; }
+.hint { font-size: .78rem; color: var(--panel-soft); margin: -6px 0 0; }
+.dlg-foot { display: flex; justify-content: flex-end; padding: 14px 20px; background: #f4f1f1; border-radius: 0 0 10px 10px; }
+.dlg-foot button { border: 0; border-radius: 6px; padding: 9px 22px; background: #222; color: #fff; font-weight: 600; }
+
+@media (max-width: 560px) {
+  #skipBtn { left: auto; right: -50px; }
+  .controls { margin-right: 36px; }
+  #startBtn { width: 170px; }
+  .slider input { width: 70px; }
+}
+
+/* ---------- Video-on-breaks controls ---------- */
+.chip {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  padding: 7px 12px; border: 0; border-radius: 999px;
+  background: var(--glass-strong); color: var(--ink); font-size: .82rem; font-weight: 600; white-space: nowrap;
+}
+.chip:hover { background: rgba(255,255,255,.3); }
+.chip-dot { width: 28px; height: 16px; border-radius: 8px; background: rgba(0,0,0,.3); position: relative; flex: none; transition: background .2s; }
+.chip-dot::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.chip[aria-pressed="true"] .chip-dot { background: #84c733; }
+.chip[aria-pressed="true"] .chip-dot::after { transform: translateX(12px); }
+.break-note {
+  margin-top: 12px; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap;
+  font-size: .9rem; color: var(--ink-soft);
+}
+.break-note button {
+  border: 0; border-radius: 6px; padding: 7px 14px;
+  background: #fff; color: rgb(var(--mode)); font-weight: 700; font-size: .85rem;
+}
+#miniBreakBtn { display: none; }
+body.mini #miniBreakBtn {
+  display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 6px;
+  background: rgba(0,0,0,.2); color: var(--ink); opacity: .6;
+}
+body.mini #miniBreakBtn[aria-pressed="true"] { background: rgba(255,255,255,.3); opacity: 1; }
+#miniBreakBtn svg { width: 18px; height: 18px; }
+
+/* ---------- Mini mode: small timer in the corner, video fully visible ---------- */
+.card { position: relative; }
+#miniBtn {
+  position: absolute; top: 10px; right: 10px;
+  width: 34px; height: 34px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--ink); display: grid; place-items: center; opacity: .8;
+}
+#miniBtn:hover { background: var(--glass-strong); opacity: 1; }
+#miniBtn svg { width: 18px; height: 18px; }
+.mini-label { display: none; }
+
+body.mini header, body.mini footer, body.mini .status, body.mini .progress, body.mini .tabs { display: none; }
+body.mini #veil { background: transparent; }
+body.mini .card {
+  position: fixed; z-index: 5; width: auto;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  flex-direction: row; align-items: center; gap: 12px;
+  padding: 10px 10px 10px 16px;
+  background: rgba(var(--mode), .9);
+  box-shadow: 0 8px 30px rgba(0,0,0,.35);
+  overflow: hidden;
+}
+body.mini .mini-time { display: flex; flex-direction: column; }
+body.mini .mini-label { display: block; font-size: .7rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
+body.mini #time { font-size: 2.3rem; margin: 0; text-shadow: none; }
+body.mini .controls { gap: 6px; margin: 0; }
+body.mini #startBtn { width: 92px; height: 40px; font-size: .95rem; box-shadow: 0 4px 0 rgb(235,235,235); }
+body.mini #startBtn.running { transform: translateY(4px); box-shadow: none; }
+body.mini #skipBtn { position: static; width: 34px; height: 34px; }
+body.mini #skipBtn:not(.show) { display: none; }
+body.mini #skipBtn svg { width: 20px; height: 20px; }
+body.mini #miniBtn { position: static; }
+body.mini .card::after {
+  content: ""; position: absolute; left: 0; bottom: 0; height: 3px;
+  width: var(--progress, 0%); background: #fff; transition: width .3s linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body class="no-video">
+
+<div id="stage"><div id="player"></div></div>
+<div id="veil"></div>
+
+<div class="shell">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>
+      Focus Tube
+    </div>
+    <form id="urlForm" autocomplete="off">
+      <input id="url" type="url" placeholder="Paste a YouTube video or playlist link" aria-label="YouTube link">
+      <button class="btn-ghost" type="submit">Load</button>
+    </form>
+    <button class="btn-ghost" id="settingsBtn" type="button" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      Settings
+    </button>
+  </header>
+
+  <main>
+    <div id="notice" hidden></div>
+    <div class="progress"><div id="bar"></div></div>
+    <section class="card" aria-label="Pomodoro timer">
+      <button id="miniBtn" type="button" aria-label="Minimize timer (M)" title="Minimize timer (M)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path id="miniIcon" d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>
+      </button>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-mode="focus" aria-selected="true">Pomodoro</button>
+        <button class="tab" role="tab" data-mode="short" aria-selected="false">Short Break</button>
+        <button class="tab" role="tab" data-mode="long" aria-selected="false">Long Break</button>
+      </div>
+      <div class="mini-time">
+        <span class="mini-label" id="miniLabel">Focus</span>
+        <div id="time" aria-live="off">25:00</div>
+      </div>
+      <div class="controls">
+        <button id="startBtn" type="button">Start</button>
+        <button id="skipBtn" type="button" aria-label="Skip to next session" title="Skip">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 5.5v13a1 1 0 0 0 1.5.86L17 13v5a1 1 0 0 0 2 0V6a1 1 0 0 0-2 0v5L6.5 4.64A1 1 0 0 0 5 5.5z"/></svg>
+        </button>
+        <button id="miniBreakBtn" type="button" aria-pressed="false" aria-label="Play video on breaks (B)" title="Play video on breaks (B)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
+        </button>
+      </div>
+    </section>
+    <div class="status">
+      <div id="round">#1</div>
+      <div id="message">Time to focus!</div>
+      <div class="break-note" id="breakNote" hidden>
+        <span>The video pauses during breaks.</span>
+        <button id="breakKeep" type="button">Keep it playing</button>
+      </div>
+    </div>
+  </main>
+
+  <footer aria-label="Background video">
+    <button class="icon-btn" id="vidPlay" type="button" aria-label="Play video" disabled>
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path id="vidPlayIcon" d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button class="icon-btn" id="vidNext" type="button" aria-label="Next video in playlist" disabled hidden>
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+    </button>
+    <button class="icon-btn" id="vidMute" type="button" aria-label="Mute video" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5z" fill="currentColor"/><path id="vidMuteWaves" d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+    </button>
+    <label class="slider" title="Video volume">
+      <span>Vol</span><input id="volume" type="range" min="0" max="100" value="40" aria-label="Video volume">
+    </label>
+    <div id="videoTitle">No video loaded</div>
+    <button class="chip" id="breakToggle" type="button" aria-pressed="false" title="Keep the video playing during breaks (B)">
+      <span class="chip-dot" aria-hidden="true"></span>Play on breaks
+    </button>
+    <label class="slider" title="How much the colour covers the video">
+      <span>Tint</span><input id="dim" type="range" min="0" max="90" value="55" aria-label="Tint strength">
+    </label>
+  </footer>
+</div>
+
+<dialog id="settings">
+  <form method="dialog">
+    <div class="dlg-head"><h2>Settings</h2><button value="close" aria-label="Close">×</button></div>
+    <div class="dlg-body">
+      <div class="group">
+        <h3>Time (minutes)</h3>
+        <div class="mins">
+          <label>Pomodoro<input id="sFocus" type="number" min="1" max="180" step="1"></label>
+          <label>Short Break<input id="sShort" type="number" min="1" max="60" step="1"></label>
+          <label>Long Break<input id="sLong" type="number" min="1" max="120" step="1"></label>
+        </div>
+        <div class="row">Auto start breaks <span class="switch"><input id="sAutoBreak" type="checkbox"><span></span></span></div>
+        <div class="row">Auto start pomodoros <span class="switch"><input id="sAutoFocus" type="checkbox"><span></span></span></div>
+        <div class="row">Long break interval <input id="sInterval" type="number" min="1" max="12" step="1"></div>
+      </div>
+      <div class="group">
+        <h3>Video</h3>
+        <div class="row">Play video only while focusing <span class="switch"><input id="sFocusOnly" type="checkbox"><span></span></span></div>
+        <p class="hint">On: the video pauses when the timer is paused or on a break. Off: it keeps playing through breaks.</p>
+      </div>
+      <div class="group">
+        <h3>Sound</h3>
+        <div class="row">Alarm when a session ends <span class="switch"><input id="sAlarm" type="checkbox"><span></span></span></div>
+        <div class="row">Alarm volume <input id="sAlarmVol" type="range" min="0" max="100"></div>
+      </div>
+    </div>
+    <div class="dlg-foot"><button value="ok">OK</button></div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const DEFAULT_URL = "https://www.youtube.com/watch?v=MxuHvYp69y0";
+
+  // ---------- Storage (best effort) ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("ft:" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("ft:" + k, JSON.stringify(v)); } catch {} }
+  };
+
+  const settings = Object.assign({
+    focus: 25, short: 5, long: 15, interval: 4,
+    autoBreak: false, autoFocus: false,
+    focusOnly: true, alarm: true, alarmVol: 60,
+    volume: 40, muted: false, dim: 55
+  }, store.get("settings", {}));
+  const saveSettings = () => store.set("settings", settings);
+
+  // ---------- Timer state ----------
+  const MODES = {
+    focus: { label: "Pomodoro", msg: "Time to focus!", color: "--focus" },
+    short: { label: "Short Break", msg: "Time for a break!", color: "--short" },
+    long:  { label: "Long Break", msg: "Time for a long break!", color: "--long" }
+  };
+  const state = { mode: "focus", total: settings.focus * 60, remaining: settings.focus * 60, running: false, endAt: 0, round: 1, doneFocus: 0 };
+  let tickId = null;
+
+  const fmt = (s) => String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+
+  function render() {
+    $("time").textContent = fmt(state.remaining);
+    $("startBtn").textContent = state.running ? "Pause" : "Start";
+    $("startBtn").classList.toggle("running", state.running);
+    $("skipBtn").classList.toggle("show", state.running);
+    const pct = (100 * (1 - state.remaining / state.total)).toFixed(2) + "%";
+    $("bar").style.width = pct;
+    document.documentElement.style.setProperty("--progress", pct);
+    $("miniLabel").textContent = state.mode === "focus" ? "Focus" : state.mode === "short" ? "Short break" : "Long break";
+    $("round").textContent = "#" + state.round;
+    $("message").textContent = MODES[state.mode].msg;
+    document.title = fmt(state.remaining) + " – " + (state.mode === "focus" ? "Time to focus!" : "Time for a break!");
+    document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.mode === state.mode)));
+    document.documentElement.style.setProperty("--mode", `var(${MODES[state.mode].color})`);
+    updateBreakUI();
+  }
+
+  function minutesFor(mode) { return mode === "focus" ? settings.focus : mode === "short" ? settings.short : settings.long; }
+
+  function setMode(mode, autoStart = false) {
+    stop(false);
+    state.mode = mode;
+    state.total = state.remaining = Math.round(minutesFor(mode) * 60);
+    render();
+    if (autoStart) start(); else syncVideo();
+  }
+
+  function start() {
+    unlockAudio();
+    if (state.remaining <= 0) state.remaining = state.total;
+    state.running = true;
+    state.endAt = Date.now() + state.remaining * 1000;
+    clearInterval(tickId);
+    tickId = setInterval(tick, 250);
+    render(); syncVideo();
+  }
+  function stop(sync = true) {
+    state.running = false;
+    clearInterval(tickId); tickId = null;
+    render(); if (sync) syncVideo();
+  }
+  function tick() {
+    const left = Math.max(0, Math.ceil((state.endAt - Date.now()) / 1000));
+    if (left !== state.remaining) { state.remaining = left; render(); }
+    if (left <= 0) finish(true);
+  }
+  function finish(natural) {
+    if (natural) ring();
+    if (state.mode === "focus") {
+      state.doneFocus++;
+      const next = state.doneFocus % settings.interval === 0 ? "long" : "short";
+      setMode(next, settings.autoBreak);
+    } else {
+      state.round++;
+      setMode("focus", settings.autoFocus);
+    }
+  }
+
+  $("startBtn").addEventListener("click", () => state.running ? stop() : start());
+  $("skipBtn").addEventListener("click", () => finish(false));
+  document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+    if (t.dataset.mode === state.mode) return;
+    setMode(t.dataset.mode);
+  }));
+  document.addEventListener("keydown", (e) => {
+    if (e.target.closest("input, dialog, textarea")) return;
+    if (e.code === "Space") { e.preventDefault(); state.running ? stop() : start(); }
+    if (e.code === "KeyM" && !e.metaKey && !e.ctrlKey && !e.altKey) setMini(!settings.mini);
+    if (e.code === "KeyB" && !e.metaKey && !e.ctrlKey && !e.altKey) setBreakVideo(settings.focusOnly);
+  });
+
+  // ---------- Video on breaks ----------
+  function updateBreakUI() {
+    const on = !settings.focusOnly;
+    $("breakToggle").setAttribute("aria-pressed", String(on));
+    $("miniBreakBtn").setAttribute("aria-pressed", String(on));
+    $("breakNote").hidden = on || state.mode === "focus" || !ready;
+  }
+  function setBreakVideo(on) {
+    settings.focusOnly = !on; saveSettings();
+    updateBreakUI(); syncVideo();
+  }
+  $("breakToggle").addEventListener("click", () => setBreakVideo(settings.focusOnly));
+  $("miniBreakBtn").addEventListener("click", () => setBreakVideo(settings.focusOnly));
+  $("breakKeep").addEventListener("click", () => setBreakVideo(true));
+
+  // ---------- Mini mode ----------
+  function setMini(on) {
+    settings.mini = on; saveSettings();
+    document.body.classList.toggle("mini", on);
+    $("miniIcon").setAttribute("d", on ? "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" : "M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7");
+    const label = on ? "Expand timer (M)" : "Minimize timer (M)";
+    $("miniBtn").setAttribute("aria-label", label); $("miniBtn").title = label;
+  }
+  $("miniBtn").addEventListener("click", () => setMini(!settings.mini));
+
+  // ---------- Alarm (Web Audio, no files needed) ----------
+  let actx = null;
+  function unlockAudio() {
+    try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch {}
+  }
+  function ring() {
+    if (!settings.alarm || !actx) return;
+    const vol = settings.alarmVol / 100 * 0.5;
+    const now = actx.currentTime;
+    [0, 0.45, 0.9].forEach((offset, i) => {
+      [880, 1320].forEach((f, j) => {
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.type = "sine"; o.frequency.value = f * (i === 2 ? 1.122 : 1);
+        g.gain.setValueAtTime(0, now + offset);
+        g.gain.linearRampToValueAtTime(vol / (j + 1), now + offset + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + offset + 1.2);
+        o.connect(g).connect(actx.destination);
+        o.start(now + offset); o.stop(now + offset + 1.25);
+      });
+    });
+  }
+
+  // ---------- YouTube ----------
+  let player = null, ready = false, isPlaylist = false, wantPlaying = false;
+  let apiPromise = null;
+
+  function loadApi() {
+    if (apiPromise) return apiPromise;
+    apiPromise = new Promise((resolve, reject) => {
+      if (window.YT && window.YT.Player) return resolve();
+      window.onYouTubeIframeAPIReady = resolve;
+      const s = document.createElement("script");
+      s.src = "https://www.youtube.com/iframe_api";
+      s.onerror = () => reject(new Error("api"));
+      document.head.appendChild(s);
+    });
+    return apiPromise;
+  }
+
+  function parseYouTube(input) {
+    const text = (input || "").trim();
+    if (!text) return null;
+    if (/^[\w-]{11}$/.test(text)) return { id: text, list: null };
+    let u;
+    try { u = new URL(/^https?:\/\//i.test(text) ? text : "https://" + text); } catch { return null; }
+    const host = u.hostname.replace(/^www\.|^m\.|^music\./, "");
+    let id = null;
+    if (host === "youtu.be") id = u.pathname.slice(1).split("/")[0];
+    else if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+      id = u.searchParams.get("v");
+      const m = u.pathname.match(/^\/(?:embed|shorts|live|v)\/([\w-]{11})/);
+      if (!id && m) id = m[1];
+    } else return null;
+    const list = u.searchParams.get("list");
+    if (id && !/^[\w-]{11}$/.test(id)) id = null;
+    if (!id && !list) return null;
+    return { id, list };
+  }
+
+  function notice(html) {
+    const n = $("notice");
+    if (!html) { n.hidden = true; n.innerHTML = ""; return; }
+    n.innerHTML = html; n.hidden = false;
+  }
+
+  async function loadVideo(url) {
+    const parsed = parseYouTube(url);
+    if (!parsed) { notice("That doesn’t look like a YouTube link. Paste a link like <code>youtube.com/watch?v=…</code> or a playlist link."); return; }
+    notice(location.protocol === "file:" ? fileNotice : "");
+    store.set("url", url);
+    $("videoTitle").textContent = "Loading video…";
+    try { await loadApi(); }
+    catch { notice("Couldn’t reach YouTube. Check your internet connection and try again."); $("videoTitle").textContent = "No video loaded"; return; }
+
+    if (player) { try { player.destroy(); } catch {} player = null; }
+    ready = false;
+    const host = document.createElement("div"); host.id = "player";
+    $("stage").replaceChildren(host);
+
+    isPlaylist = !!parsed.list;
+    const vars = { autoplay: 0, controls: 0, disablekb: 1, rel: 0, playsinline: 1, iv_load_policy: 3, modestbranding: 1, fs: 0, origin: location.origin };
+    if (parsed.list) { vars.listType = "playlist"; vars.list = parsed.list; }
+    else { vars.loop = 1; vars.playlist = parsed.id; }
+
+    player = new YT.Player("player", {
+      videoId: parsed.id || undefined,
+      playerVars: vars,
+      events: {
+        onReady() {
+          ready = true;
+          document.body.classList.remove("no-video");
+          player.setVolume(settings.volume);
+          settings.muted ? player.mute() : player.unMute();
+          if (isPlaylist) { try { player.setLoop(true); } catch {} }
+          ["vidPlay", "vidMute", "vidNext"].forEach(id => $(id).disabled = false);
+          $("vidNext").hidden = !isPlaylist;
+          updateTitle(); updateVideoButtons(); updateBreakUI();
+          syncVideo();
+        },
+        onStateChange(e) {
+          if (e.data === YT.PlayerState.ENDED && !isPlaylist) { player.seekTo(0); player.playVideo(); }
+          updateTitle(); updateVideoButtons();
+        },
+        onError(e) {
+          const msgs = {
+            2: "That link has an invalid video ID.",
+            5: "This video can’t play in an embedded player.",
+            100: "That video was removed or is private.",
+            101: "The owner of this video doesn’t allow it to be played on other sites. Try a different video.",
+            150: "The owner of this video doesn’t allow it to be played on other sites. Try a different video.",
+            153: "YouTube refused to play because this page was opened as a file. " + serveHint
+          };
+          if (isPlaylist && (e.data === 101 || e.data === 150 || e.data === 100)) { try { player.nextVideo(); return; } catch {} }
+          notice(msgs[e.data] || "YouTube couldn’t play this video (error " + e.data + ").");
+        }
+      }
+    });
+  }
+
+  function updateTitle() {
+    if (!ready) return;
+    let t = "";
+    try { t = player.getVideoData().title || ""; } catch {}
+    $("videoTitle").textContent = t || "Video ready";
+    $("videoTitle").title = t;
+  }
+  function videoPlaying() {
+    try { const s = player.getPlayerState(); return s === YT.PlayerState.PLAYING || s === YT.PlayerState.BUFFERING; } catch { return false; }
+  }
+  function updateVideoButtons() {
+    if (!ready) return;
+    const playing = videoPlaying();
+    $("vidPlayIcon").setAttribute("d", playing ? "M7 5h4v14H7zM13 5h4v14h-4z" : "M8 5v14l11-7z");
+    $("vidPlay").setAttribute("aria-label", playing ? "Pause video" : "Play video");
+    const muted = player.isMuted();
+    $("vidMuteWaves").setAttribute("d", muted ? "M16 9l6 6M22 9l-6 6" : "M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14");
+    $("vidMute").setAttribute("aria-label", muted ? "Unmute video" : "Mute video");
+  }
+
+  // The timer drives the video: play while a session runs, pause otherwise.
+  function syncVideo() {
+    wantPlaying = state.running && (state.mode === "focus" || !settings.focusOnly);
+    if (!ready) return;
+    try { wantPlaying ? player.playVideo() : player.pauseVideo(); } catch {}
+    setTimeout(updateVideoButtons, 300);
+  }
+
+  $("vidPlay").addEventListener("click", () => { if (!ready) return; videoPlaying() ? player.pauseVideo() : player.playVideo(); setTimeout(updateVideoButtons, 300); });
+  $("vidNext").addEventListener("click", () => { if (ready) player.nextVideo(); });
+  $("vidMute").addEventListener("click", () => {
+    if (!ready) return;
+    player.isMuted() ? player.unMute() : player.mute();
+    settings.muted = !settings.muted; saveSettings();
+    setTimeout(updateVideoButtons, 100);
+  });
+  $("volume").addEventListener("input", (e) => {
+    settings.volume = +e.target.value; saveSettings();
+    if (ready) { player.setVolume(settings.volume); if (settings.volume > 0 && player.isMuted()) { player.unMute(); settings.muted = false; } updateVideoButtons(); }
+  });
+  $("dim").addEventListener("input", (e) => {
+    settings.dim = +e.target.value; saveSettings();
+    document.documentElement.style.setProperty("--dim", settings.dim / 100);
+  });
+
+  $("urlForm").addEventListener("submit", (e) => { e.preventDefault(); loadVideo($("url").value); $("url").blur(); });
+
+  // ---------- Settings dialog ----------
+  const fields = { sFocus: "focus", sShort: "short", sLong: "long", sInterval: "interval", sAlarmVol: "alarmVol" };
+  const toggles = { sAutoBreak: "autoBreak", sAutoFocus: "autoFocus", sFocusOnly: "focusOnly", sAlarm: "alarm" };
+  $("settingsBtn").addEventListener("click", () => {
+    for (const [id, k] of Object.entries(fields)) $(id).value = settings[k];
+    for (const [id, k] of Object.entries(toggles)) $(id).checked = settings[k];
+    $("settings").showModal();
+  });
+  $("settings").addEventListener("close", () => {
+    const before = minutesFor(state.mode);
+    for (const [id, k] of Object.entries(fields)) {
+      const v = Math.round(Number($(id).value));
+      if (Number.isFinite(v) && v >= Number($(id).min)) settings[k] = Math.min(v, Number($(id).max));
+    }
+    for (const [id, k] of Object.entries(toggles)) settings[k] = $(id).checked;
+    saveSettings();
+    if (!state.running && minutesFor(state.mode) !== before) setMode(state.mode);
+    updateBreakUI(); syncVideo();
+  });
+
+  // ---------- Boot ----------
+  const serveHint = "Run <code>python3 -m http.server 8000</code> in this folder and open <code>http://localhost:8000</code>.";
+  const fileNotice = "This page is open as a file, and YouTube usually refuses to play videos there. " + serveHint;
+
+  $("volume").value = settings.volume;
+  $("dim").value = settings.dim;
+  document.documentElement.style.setProperty("--dim", settings.dim / 100);
+  setMode("focus");
+  setMini(!!settings.mini);
+
+  const startUrl = store.get("url", DEFAULT_URL);
+  $("url").value = startUrl;
+  loadVideo(startUrl);
+})();
+</script>
+</body>
+</html>
